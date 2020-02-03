@@ -104,12 +104,17 @@ public class Genome {
             if (start.getX() == end.getX()) {
                 continue;
             } else if (start.getX() < end.getX()) {
-                ConnectionWrapper connectionWrapper = new ConnectionWrapper()
+                Optional<ConnectionWrapper> connection = findConnection(start, end);
+                if (connection.isPresent() && !connection.get().isEnabled()) {
+                    connection.get().setEnabled(true);
+                }
+                ConnectionWrapper connectionWrapper = new ConnectionWrapper(genePool.requestConnection(start, end), getRandomWeight());
             }
         }
     }
 
     public void mutateNode() {
+        ConnectionWrapper connection = connections.getRandomElement();
 
     }
 
@@ -123,8 +128,12 @@ public class Genome {
     public void mutateWeightRandom() {
         if (connections.size() > 0) {
             ConnectionWrapper connection = connections.getRandomElement();
-            connection.setWeight(ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_RANDOM_STRENGTH);
+            connection.setWeight(getRandomWeight());
         }
+    }
+
+    private double getRandomWeight() {
+        return ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_RANDOM_STRENGTH;
     }
 
     public void mutateLinkToggle() {
@@ -156,5 +165,9 @@ public class Genome {
 
     public RandomSet<Node> getNodes() {
         return nodes;
+    }
+
+    public Optional<ConnectionWrapper> findConnection(Node from, Node to) {
+        return connections.stream().filter(c -> c.getConnection().getFrom().equals(from) && c.getConnection().getTo().equals(to)).findAny();
     }
 }
