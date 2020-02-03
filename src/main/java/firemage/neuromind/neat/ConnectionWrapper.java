@@ -17,8 +17,12 @@ public class ConnectionWrapper {
         this.enabled = wrapper.isEnabled();
     }
 
-    public void disable() {
-        enabled = false;
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
     }
 
     public double getWeight() {

@@ -10,6 +10,10 @@ public class Genome {
     public static final double C1 = 1.0;
     public static final double C2 = 1.0;
     public static final double C3 = 0.4;
+    public static final double WEIGHT_SHIFT_STRENGTH = 0.3;
+    public static final double WEIGHT_RANDOM_STRENGTH = 1.0;
+
+    public static final int MAX_MUTATE_TRIES = 100;
 
     private final GenePool genePool;
 
@@ -62,11 +66,6 @@ public class Genome {
         return (C1 * disjoint + C2 * excess) / N + C3 * weightDiff;
     }
 
-    //TODO
-    public void mutate() {
-
-    }
-
     // Assumes g2 is less fit than this genome
     public Genome crossover(Genome g2) {
 
@@ -91,6 +90,48 @@ public class Genome {
         }
 
         return offspring;
+    }
+
+    public void mutate() {
+
+    }
+
+    public void mutateLink() {
+        for (int i = 0; i < MAX_MUTATE_TRIES; i++) {
+            Node start = nodes.getRandomElement();
+            Node end = nodes.getRandomElement();
+
+            if (start.getX() == end.getX()) {
+                continue;
+            } else if (start.getX() < end.getX()) {
+                ConnectionWrapper connectionWrapper = new ConnectionWrapper()
+            }
+        }
+    }
+
+    public void mutateNode() {
+
+    }
+
+    public void mutateWeightShift() {
+        if (connections.size() > 0) {
+            ConnectionWrapper connection = connections.getRandomElement();
+            connection.setWeight(ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_SHIFT_STRENGTH + connection.getWeight());
+        }
+    }
+
+    public void mutateWeightRandom() {
+        if (connections.size() > 0) {
+            ConnectionWrapper connection = connections.getRandomElement();
+            connection.setWeight(ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_RANDOM_STRENGTH);
+        }
+    }
+
+    public void mutateLinkToggle() {
+        if (connections.size() > 0) {
+            ConnectionWrapper connection = connections.getRandomElement();
+            connection.setEnabled(!connection.isEnabled());
+        }
     }
 
     public Optional<ConnectionWrapper> findConnection(int innovation) {
