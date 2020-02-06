@@ -1,9 +1,8 @@
 package firemage.neuromind.util.structures;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import firemage.neuromind.neat.Species;
+
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -44,6 +43,10 @@ public class RandomSet<T> {
         }
     }
 
+    public synchronized void addAll(Collection<T> elements) {
+        elements.forEach(this::add);
+    }
+
     public synchronized void remove(int index) {
         set.remove(list.get(index));
         list.remove(index);
@@ -60,5 +63,17 @@ public class RandomSet<T> {
 
     public void forEach(Consumer<? super T> action) {
         set.forEach(action);
+    }
+
+    public List<T> asList() {
+        return list;
+    }
+
+    public Set<T> asSet() {
+        return set;
+    }
+
+    public synchronized void removeAll(Collection<T> elements) {
+        elements.forEach(this::remove);
     }
 }

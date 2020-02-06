@@ -3,4 +3,5 @@ module NeuroMind {
     requires javafx.controls;
 
     exports firemage.neuromind.neat.ui;
+    exports firemage.neuromind.examples.snake;
 }

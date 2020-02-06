@@ -10,26 +10,28 @@ public class RandomSelector<T> {
     private double totalScore = 0;
 
     public synchronized void add(T element, double score) {
+        if (score < 0)
+            throw new IllegalArgumentException("Score must be greater than zero");
         elements.add(element);
         scores.add(score);
         totalScore += score;
     }
 
+    public synchronized void addAll(List<T> elements, List<Double> scores) {
+        this.elements.addAll(elements);
+        this.scores.addAll(scores);
+        totalScore += scores.stream().mapToDouble(s -> s).sum();
+    }
+
     public T randomElement() {
-        double threshold = ThreadLocalRandom.current().nextDouble(0, totalScore);
+        double threshold = ThreadLocalRandom.current().nextDouble() * totalScore;
         double current = 0;
 
         for (int i = 0; i < scores.size(); i++) {
             current += scores.get(i);
-            if (current > threshold)
+            if (current >= threshold)
                 return elements.get(i);
         }
         throw new IllegalStateException("Found no element");
-    }
-
-    public synchronized void reset() {
-        elements.clear();
-        scores.clear();
-        totalScore = 0;
     }
 }

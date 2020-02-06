@@ -2,16 +2,25 @@ package firemage.neuromind.neat;
 
 import firemage.neuromind.util.structures.RandomSet;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Genome {
 
-    public static final double C1 = 1.0;
-    public static final double C2 = 1.0;
-    public static final double C3 = 0.4;
-    public static final double WEIGHT_SHIFT_STRENGTH = 0.3;
-    public static final double WEIGHT_RANDOM_STRENGTH = 1.0;
+    public static final double C1 = 1.0;    // = C2 in the original paper
+    public static final double C2 = 0.4;    // = C3 in the original paper
+    public static final double WEIGHT_SHIFT_STRENGTH = 0.8;
+    public static final double WEIGHT_RANDOM_STRENGTH = 2.0;
+
+    public static final double CROSSOVER_LINK_DISABLE_PROBABILITY = 0.75;   // If the link is disabled at at least one parent
+
+    public static double MUTATE_ADD_LINK_PROBABILITY_SMALL = 0.05;
+    public static double MUTATE_ADD_LINK_PROBABILITY_LARGE = 0.3;
+    public static double MUTATE_ADD_NODE_PROBABILITY_SMALL = 0.003;
+    public static double MUTATE_ADD_NODE_PROBABILITY_LARGE = 0.003;
+    public static double MUTATE_WEIGHT_PROBABILITY = 0.8;
+    public static double MUTATE_WEIGHT_SHIFT_PROBABILITY = 0.9;
 
     public static final int MAX_MUTATE_TRIES = 100;
 
@@ -24,10 +33,10 @@ public class Genome {
         this.genePool = genePool;
     }
 
+    // Doesn't distinguish between excess and disjoint genes
     public double distance(Genome g2) {
 
         int disjoint = 0;
-        int excess = 0;
         int similar = 0;
         double weightDiff = 0;
 
@@ -40,30 +49,19 @@ public class Genome {
                     similar++;
                     weightDiff += Math.abs(con1.get().getWeight() - con2.get().getWeight());
                 } else {
-                    if (i >= g2.getConnections().size()) {
-                        // Excess gene
-                        excess++;
-                    } else {
-                        // Disjoint gene
-                        disjoint++;
-                    }
-                }
-            } else {
-                if (i >= this.getConnections().size()) {
-                    // Excess gene
-                    excess++;
-                } else {
-                    // Disjoint gene
                     disjoint++;
                 }
+            } else if(con2.isPresent()) {
+                disjoint++;
             }
         }
 
-        weightDiff /= similar;
+        if (similar != 0)
+            weightDiff /= similar;
         double N = Math.max(this.getConnections().size(), g2.getConnections().size());
         if (N < 20) N = 1;
 
-        return (C1 * disjoint + C2 * excess) / N + C3 * weightDiff;
+        return (C1 * disjoint) / N + C2 * weightDiff;
     }
 
     // Assumes g2 is less fit than this genome
@@ -77,11 +75,16 @@ public class Genome {
             if (con1.isPresent()) {
                 if (con2.isPresent()) {
                     // Similar gene -> choose random connection
-                    if (ThreadLocalRandom.current().nextDouble() >= 0.5) {
-                        offspring.addConnection(new ConnectionWrapper(con1.get()));
+                    ConnectionWrapper connection;
+                    if (ThreadLocalRandom.current().nextBoolean()) {
+                        connection = new ConnectionWrapper(con1.get());
                     } else {
-                        offspring.addConnection(new ConnectionWrapper(con2.get()));
+                        connection = new ConnectionWrapper(con2.get());
                     }
+                    if (!con1.get().isEnabled() || !con2.get().isEnabled()) {
+                        connection.setEnabled(ThreadLocalRandom.current().nextDouble() >= CROSSOVER_LINK_DISABLE_PROBABILITY);
+                    }
+                    offspring.addConnection(connection);
                 } else {
                     offspring.addConnection(new ConnectionWrapper(con1.get()));
                 }
@@ -89,61 +92,94 @@ public class Genome {
             // Ignore disjoint / excess genes of g2
         }
 
+        offspring.getNodes().addAll(this.getNodes().asList());
+
         return offspring;
     }
 
-    public void mutate() {
-
+    public void mutateLargeIntensity() {
+        final ThreadLocalRandom random = ThreadLocalRandom.current();
+        mutateLink(random);
+        if (random.nextDouble() < MUTATE_ADD_NODE_PROBABILITY_LARGE) {
+            mutateAddNode();
+        }
+        if (random.nextDouble() < MUTATE_ADD_LINK_PROBABILITY_LARGE) {
+            mutateAddLink();
+        }
     }
 
-    public void mutateLink() {
+    public void mutateSmallIntensity() {
+        final ThreadLocalRandom random = ThreadLocalRandom.current();
+        mutateLink(random);
+        if (random.nextDouble() < MUTATE_ADD_NODE_PROBABILITY_SMALL) {
+            mutateAddNode();
+        }
+        if (random.nextDouble() < MUTATE_ADD_LINK_PROBABILITY_SMALL) {
+            mutateAddLink();
+        }
+    }
+
+    private void mutateLink(ThreadLocalRandom random) {
+        if (random.nextDouble() < MUTATE_WEIGHT_PROBABILITY) {
+            connections.forEach(connection -> {
+                if(random.nextDouble() < MUTATE_WEIGHT_SHIFT_PROBABILITY) {
+                    connection.setWeight(connection.getWeight() + random.nextGaussian() * WEIGHT_SHIFT_STRENGTH);
+                } else {
+                    connection.setWeight(getRandomWeight());
+                }
+            });
+        }
+    }
+
+    private void mutateAddLink() {
         for (int i = 0; i < MAX_MUTATE_TRIES; i++) {
             Node start = nodes.getRandomElement();
             Node end = nodes.getRandomElement();
 
             if (start.getX() == end.getX()) {
                 continue;
-            } else if (start.getX() < end.getX()) {
-                Optional<ConnectionWrapper> connection = findConnection(start, end);
-                if (connection.isPresent() && !connection.get().isEnabled()) {
-                    connection.get().setEnabled(true);
-                }
-                ConnectionWrapper connectionWrapper = new ConnectionWrapper(genePool.requestConnection(start, end), getRandomWeight());
             }
-        }
-    }
 
-    public void mutateNode() {
-        ConnectionWrapper connection = connections.getRandomElement();
+            if (start.getX() > end.getX()) {
+                Node tmp = end;
+                end = start;
+                start = tmp;
+            }
 
-    }
-
-    public void mutateWeightShift() {
-        if (connections.size() > 0) {
-            ConnectionWrapper connection = connections.getRandomElement();
-            connection.setWeight(ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_SHIFT_STRENGTH + connection.getWeight());
-        }
-    }
-
-    public void mutateWeightRandom() {
-        if (connections.size() > 0) {
-            ConnectionWrapper connection = connections.getRandomElement();
-            connection.setWeight(getRandomWeight());
+            Optional<ConnectionWrapper> connection = findConnection(start, end);
+            if (connection.isPresent()) {
+                if (!connection.get().isEnabled())
+                    connection.get().setEnabled(true);
+                else
+                    continue;
+            } else {
+                ConnectionWrapper connectionWrapper = new ConnectionWrapper(genePool.requestConnection(start, end), getRandomWeight());
+                connections.add(connectionWrapper);
+            }
+            return;
         }
     }
 
     private double getRandomWeight() {
-        return ThreadLocalRandom.current().nextDouble(-1, 1) * WEIGHT_RANDOM_STRENGTH;
+        return ThreadLocalRandom.current().nextDouble(-WEIGHT_RANDOM_STRENGTH, WEIGHT_RANDOM_STRENGTH);
     }
 
-    public void mutateLinkToggle() {
-        if (connections.size() > 0) {
-            ConnectionWrapper connection = connections.getRandomElement();
-            connection.setEnabled(!connection.isEnabled());
-        }
+    private void mutateAddNode() {
+        if (connections.size() == 0) return;
+        ConnectionWrapper con = connections.getRandomElement();
+
+        Node middle = genePool.createNode((con.getConnection().getFrom().getX() + con.getConnection().getTo().getX()) / 2,
+                (con.getConnection().getFrom().getY() + con.getConnection().getTo().getY()) / 2 + ThreadLocalRandom.current().nextDouble(-0.05, 0.05), con.getConnection());
+        nodes.add(middle);
+        connections.add(new ConnectionWrapper(genePool.requestConnection(con.getConnection().getFrom(), middle), 1.0));
+        ConnectionWrapper end = new ConnectionWrapper(genePool.requestConnection(middle, con.getConnection().getTo()), con.getWeight());
+        end.setEnabled(con.isEnabled());
+        connections.add(end);
+
+        con.setEnabled(false);
     }
 
-    public Optional<ConnectionWrapper> findConnection(int innovation) {
+    private Optional<ConnectionWrapper> findConnection(int innovation) {
         return connections.stream().filter(c -> c.getConnection().getInnovation() == innovation).findAny();
     }
 
@@ -169,5 +205,14 @@ public class Genome {
 
     public Optional<ConnectionWrapper> findConnection(Node from, Node to) {
         return connections.stream().filter(c -> c.getConnection().getFrom().equals(from) && c.getConnection().getTo().equals(to)).findAny();
+    }
+
+    public List<Node> getInputNodes() {
+        return genePool.getInputNodes();
+    }
+
+
+    public List<Node> getOutputNodes() {
+        return genePool.getOutputNodes();
     }
 }

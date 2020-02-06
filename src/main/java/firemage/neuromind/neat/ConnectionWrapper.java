@@ -7,6 +7,10 @@ public class ConnectionWrapper {
     private boolean enabled;
 
     public ConnectionWrapper(Connection connection, double weight) {
+        this(connection, weight, true);
+    }
+
+    public ConnectionWrapper(Connection connection, double weight, boolean enabled) {
         this.connection = connection;
         this.weight = weight;
         this.enabled = true;
